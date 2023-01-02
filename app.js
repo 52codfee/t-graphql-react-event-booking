@@ -1,6 +1,9 @@
 const express = require("express")
 const { graphqlHTTP } = require("express-graphql")
 const { buildSchema } = require("graphql")
+const mongoose = require("mongoose")
+
+const Event = require("./models/event")
 
 const app = express()
 
@@ -23,7 +26,7 @@ app.use(
                 title: String!
                 description: String!
                 price: Float!
-                date: String
+                date: String!
             }
 
             type RootQuery {
@@ -41,22 +44,48 @@ app.use(
         `),
         rootValue: {
             events: () => {
-                return events
+                return Event.find()
+                    .then((events) => {
+                        console.log(events)
+                        return events.map((event) => {
+                            return { ...event._doc }
+                        })
+                    })
+                    .catch((err) => {
+                        console.log(err)
+                        throw err
+                    })
             },
             createEvent: (args) => {
-                const event = {
-                    _id: Math.random().toString(),
+                const event = new Event({
                     title: args.eventInput.title,
                     description: args.eventInput.description,
                     price: +args.eventInput.price,
-                    date: new Date().toISOString(),
-                }
-                events.push(event)
+                    date: new Date(args.eventInput.date),
+                })
                 return event
+                    .save()
+                    .then((result) => {
+                        console.log(result)
+                        return { ...result._doc }
+                    })
+                    .catch((err) => {
+                        console.log(err)
+                        throw err
+                    })
             },
         },
         graphiql: true,
     })
 )
 
-app.listen(3000)
+mongoose
+    .connect(
+        `mongodb+srv://${process.env.MONGODB_USER}:${process.env.MONGODB_PASSWORD}@${process.env.MONGODB_CLUSTER}.mongodb.net/${process.env.MONGODB_NAME}?retryWrites=true&w=majority`
+    )
+    .then(() => {
+        app.listen(3000)
+    })
+    .catch((err) => {
+        console.log(err)
+    })
